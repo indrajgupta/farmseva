@@ -1,9 +1,12 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useCallback } from 'react'
 import { MapPin, Loader2, Navigation, X, CheckCircle, Map } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 
-// Fix Leaflet default marker icons (Vite/webpack issue)
+// ✅ CRITICAL: Import Leaflet CSS directly — CDN injection is unreliable in Vite
+import 'leaflet/dist/leaflet.css'
+
+// Fix Leaflet default marker icons broken by Vite's asset pipeline
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
@@ -14,7 +17,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 })
 
-// Custom green pin marker
+// Green marker for dropped pin
 const greenIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
   shadowUrl: markerShadow,
@@ -24,7 +27,7 @@ const greenIcon = new L.Icon({
   shadowSize: [41, 41],
 })
 
-/** Reverse geocode lat/lng to a readable address string */
+/** Reverse geocode lat/lng → human-readable address via OpenStreetMap (free) */
 async function reverseGeocode(lat, lng) {
   try {
     const res = await fetch(
@@ -32,54 +35,49 @@ async function reverseGeocode(lat, lng) {
       { headers: { 'Accept-Language': 'en' } }
     )
     const data = await res.json()
-    const addr = data.address || {}
+    const a = data.address || {}
     const parts = [
-      addr.village || addr.town || addr.suburb || addr.neighbourhood,
-      addr.county || addr.district,
-      addr.state_district,
-      addr.state,
+      a.village || a.town || a.suburb || a.neighbourhood,
+      a.county || a.district,
+      a.state_district,
+      a.state,
     ].filter(Boolean)
     return parts.length >= 2
       ? parts.slice(0, 3).join(', ')
-      : data.display_name?.split(',').slice(0, 3).join(',').trim() || `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+      : data.display_name?.split(',').slice(0, 3).join(',').trim() || `${lat.toFixed(5)}, ${lng.toFixed(5)}`
   } catch {
-    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
   }
 }
 
-/** Leaflet click handler — child component inside MapContainer */
+/** Captures map click events inside a MapContainer */
 function MapClickHandler({ onMapClick }) {
   useMapEvents({ click: (e) => onMapClick(e.latlng) })
   return null
 }
 
-/** Full-screen interactive map modal */
+/** Interactive map modal — tap to drop a pin */
 function MapPickerModal({ initialCoords, onConfirm, onClose }) {
-  const defaultCenter = initialCoords
+  const center = initialCoords
     ? [initialCoords.lat, initialCoords.lng]
     : [26.8467, 80.9462] // Default: Lucknow, UP
 
-  const [pinCoords, setPinCoords] = useState(initialCoords || null)
+  const [pin, setPin] = useState(initialCoords || null)
   const [address, setAddress] = useState('')
   const [geocoding, setGeocoding] = useState(false)
 
   const handleMapClick = useCallback(async ({ lat, lng }) => {
-    setPinCoords({ lat, lng })
+    setPin({ lat, lng })
     setGeocoding(true)
     const addr = await reverseGeocode(lat, lng)
     setAddress(addr)
     setGeocoding(false)
   }, [])
 
-  const handleConfirm = () => {
-    if (pinCoords) {
-      onConfirm({ address, lat: pinCoords.lat, lng: pinCoords.lng })
-    }
-  }
-
   return (
     <div className="map-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="map-modal">
+        {/* Header */}
         <div className="map-modal__header">
           <MapPin size={16} />
           <span>Tap on the map to pin your farm location</span>
@@ -88,51 +86,48 @@ function MapPickerModal({ initialCoords, onConfirm, onClose }) {
           </button>
         </div>
 
-        <div className="map-modal__map-wrap">
+        {/* Map — explicit pixel height so Leaflet renders */}
+        <div style={{ position: 'relative', height: 360, flex: 'none' }}>
           <MapContainer
-            center={defaultCenter}
+            center={center}
             zoom={13}
             style={{ height: '100%', width: '100%' }}
-            zoomControl={true}
+            zoomControl
           >
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <MapClickHandler onMapClick={handleMapClick} />
-            {pinCoords && (
-              <Marker position={[pinCoords.lat, pinCoords.lng]} icon={greenIcon} />
-            )}
+            {pin && <Marker position={[pin.lat, pin.lng]} icon={greenIcon} />}
           </MapContainer>
 
-          {!pinCoords && (
+          {/* Overlay hint when no pin dropped yet */}
+          {!pin && (
             <div className="map-modal__hint">
               <MapPin size={14} /> Tap anywhere on the map to drop a pin
             </div>
           )}
         </div>
 
+        {/* Footer */}
         <div className="map-modal__footer">
-          {pinCoords ? (
-            <div className="map-modal__address">
-              {geocoding ? (
-                <><Loader2 size={13} className="spin" /> Getting address…</>
-              ) : (
-                <><CheckCircle size={13} style={{ color: '#2e7d32' }} /> {address || `${pinCoords.lat.toFixed(4)}, ${pinCoords.lng.toFixed(4)}`}</>
-              )}
-            </div>
-          ) : (
-            <div className="map-modal__address" style={{ color: 'var(--color-text-muted)' }}>
-              No location selected yet
-            </div>
-          )}
+          <div className="map-modal__address">
+            {pin ? (
+              geocoding
+                ? <><Loader2 size={13} className="spin" /> Getting address…</>
+                : <><CheckCircle size={13} style={{ color: '#2e7d32' }} /> {address || `${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)}`}</>
+            ) : (
+              <span style={{ color: 'var(--color-text-muted)' }}>No location selected yet</span>
+            )}
+          </div>
           <div className="map-modal__actions">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button
               type="button"
               className="btn btn-primary"
-              onClick={handleConfirm}
-              disabled={!pinCoords || geocoding}
+              onClick={() => pin && onConfirm({ address, lat: pin.lat, lng: pin.lng })}
+              disabled={!pin || geocoding}
             >
               Confirm Location
             </button>
@@ -149,21 +144,6 @@ export default function LocationPicker({ value, onChange, error }) {
   const [coords, setCoords] = useState(null)
   const [geoError, setGeoError] = useState('')
   const [mapOpen, setMapOpen] = useState(false)
-  const [leafletCss, setLeafletCss] = useState(false)
-
-  // Dynamically inject Leaflet CSS once
-  useEffect(() => {
-    if (!document.getElementById('leaflet-css')) {
-      const link = document.createElement('link')
-      link.id = 'leaflet-css'
-      link.rel = 'stylesheet'
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-      document.head.appendChild(link)
-      link.onload = () => setLeafletCss(true)
-    } else {
-      setLeafletCss(true)
-    }
-  }, [])
 
   const applyCoords = useCallback(async (lat, lng, accuracy) => {
     setCoords({ lat, lng, accuracy: accuracy || 0 })
@@ -175,43 +155,32 @@ export default function LocationPicker({ value, onChange, error }) {
   const detectLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setStatus('error')
-      setGeoError('Geolocation is not supported by your browser.')
+      setGeoError('Geolocation not supported by this browser.')
       return
     }
     setStatus('loading')
     setGeoError('')
 
-    // Try WITHOUT enableHighAccuracy first — works better on many mobile browsers
-    // Falls back to a second attempt with high accuracy if it fails
-    let resolved = false
-
-    const tryGPS = (highAccuracy, timeout) => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (resolved) return
-          resolved = true
-          applyCoords(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy)
-        },
-        (err) => {
-          if (resolved) return
-          if (!highAccuracy) {
-            // Retry with high accuracy
-            tryGPS(true, 12000)
-          } else {
-            resolved = true
-            setStatus(err.code === 1 ? 'denied' : 'error')
-            setGeoError(
-              err.code === 1
-                ? 'Location access denied. Tap "Pick on Map" to pin your location manually.'
-                : 'GPS signal weak. Tap "Pick on Map" to pin your location manually.'
-            )
-          }
-        },
-        { enableHighAccuracy: highAccuracy, timeout, maximumAge: 30000 }
-      )
-    }
-
-    tryGPS(false, 8000)
+    // ✅ FIX: Always use enableHighAccuracy: true so it uses GPS chip, not WiFi/IP
+    // maximumAge: 0 forces a fresh reading every time
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        applyCoords(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy)
+      },
+      (err) => {
+        setStatus(err.code === 1 ? 'denied' : 'error')
+        setGeoError(
+          err.code === 1
+            ? 'Location access denied. Tap "Pin on Map" to set your location manually.'
+            : 'GPS signal not available. Tap "Pin on Map" to set your location manually.'
+        )
+      },
+      {
+        enableHighAccuracy: true, // ← GPS chip, not WiFi/IP
+        timeout: 15000,           // Give phone GPS up to 15s to lock
+        maximumAge: 0,            // Always get fresh position
+      }
+    )
   }, [applyCoords])
 
   const clearLocation = () => {
@@ -231,7 +200,7 @@ export default function LocationPicker({ value, onChange, error }) {
 
   return (
     <div className="location-picker">
-      {/* Input row */}
+      {/* Input + button row */}
       <div className="location-picker__row">
         <div className="location-picker__input-wrap">
           <MapPin size={16} className="location-picker__icon" />
@@ -251,13 +220,13 @@ export default function LocationPicker({ value, onChange, error }) {
           )}
         </div>
 
-        {/* GPS Button */}
+        {/* GPS auto-detect */}
         <button
           type="button"
           className={`btn location-picker__btn${status === 'loading' ? ' btn-disabled' : ''}`}
           onClick={detectLocation}
           disabled={status === 'loading'}
-          title="Auto-detect using GPS"
+          title="Detect exact GPS location"
         >
           {status === 'loading'
             ? <><Loader2 size={15} className="spin" /> Detecting…</>
@@ -265,12 +234,12 @@ export default function LocationPicker({ value, onChange, error }) {
           }
         </button>
 
-        {/* Pick on Map Button */}
+        {/* Manual map pin */}
         <button
           type="button"
           className="btn location-picker__map-btn"
           onClick={() => setMapOpen(true)}
-          title="Pick location on map"
+          title="Pin your location on map"
         >
           <Map size={15} /> Pin on Map
         </button>
@@ -283,7 +252,7 @@ export default function LocationPicker({ value, onChange, error }) {
           <span>
             {coords.accuracy > 0
               ? `GPS detected · ±${Math.round(coords.accuracy)}m accuracy`
-              : 'Location pinned on map'}
+              : 'Location pinned on map ✓'}
           </span>
         </div>
       )}
@@ -294,8 +263,8 @@ export default function LocationPicker({ value, onChange, error }) {
         </div>
       )}
 
-      {/* Map Modal */}
-      {mapOpen && leafletCss && (
+      {/* Map modal — always renders when open, no CSS guard needed */}
+      {mapOpen && (
         <MapPickerModal
           initialCoords={coords}
           onConfirm={handleMapConfirm}
