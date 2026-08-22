@@ -682,11 +682,13 @@ img {
   display: flex;
   gap: var(--space-sm);
   align-items: stretch;
+  flex-wrap: wrap;
 }
 
 .location-picker__input-wrap {
   position: relative;
   flex: 1;
+  min-width: 180px;
   display: flex;
   align-items: center;
 }
@@ -719,6 +721,7 @@ img {
 }
 .location-picker__clear:hover { color: var(--color-text); }
 
+/* GPS detect button */
 .location-picker__btn {
   flex-shrink: 0;
   display: flex;
@@ -747,7 +750,32 @@ img {
   cursor: not-allowed;
 }
 
-/* Spin animation for loading icon */
+/* Pin on Map button */
+.location-picker__map-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: var(--font-size-sm) !important;
+  padding: 0 var(--space-md) !important;
+  height: 44px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-secondary);
+  color: var(--color-secondary);
+  background: var(--color-secondary-light);
+  cursor: pointer;
+  font-weight: 600;
+  transition: background var(--transition-base), transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.location-picker__map-btn:hover {
+  background: var(--color-secondary);
+  color: white;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* Spin animation */
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -772,13 +800,26 @@ img {
   color: #c62828;
 }
 
-/* Map container */
-.location-picker__map-container {
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  border: 1.5px solid var(--color-border);
-  box-shadow: var(--shadow-sm);
-  animation: fadeSlideIn 0.3s ease;
+/* ===================================================
+   Map Picker Modal
+=================================================== */
+
+.map-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md);
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 @keyframes fadeSlideIn {
@@ -786,11 +827,25 @@ img {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.location-picker__map-header {
+.map-modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: fadeSlideIn 0.25s ease;
+}
+
+.map-modal__header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
   background: var(--color-primary-light);
   color: var(--color-primary-dark);
   font-size: var(--font-size-xs);
