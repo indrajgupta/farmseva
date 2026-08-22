@@ -791,6 +791,10 @@ img {
   padding: 6px 10px;
   border-radius: var(--radius-sm);
 }
+.location-picker__status--loading {
+  background: #fff8e1;
+  color: #e65100;
+}
 .location-picker__status--success {
   background: #e8f5e9;
   color: #2e7d32;

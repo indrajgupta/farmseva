@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useRef } from 'react'
 import { MapPin, Loader2, Navigation, X, CheckCircle, Map } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
@@ -142,15 +142,28 @@ function MapPickerModal({ initialCoords, onConfirm, onClose }) {
 export default function LocationPicker({ value, onChange, error }) {
   const [status, setStatus] = useState('idle') // idle | loading | success | error | denied
   const [coords, setCoords] = useState(null)
+  const [liveAccuracy, setLiveAccuracy] = useState(null) // live accuracy while watching
   const [geoError, setGeoError] = useState('')
   const [mapOpen, setMapOpen] = useState(false)
+  const watchIdRef = useRef(null)
+  const bestAccuracyRef = useRef(Infinity)
+  const bestPositionRef = useRef(null)
 
-  const applyCoords = useCallback(async (lat, lng, accuracy) => {
+  const stopWatch = useCallback(() => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current)
+      watchIdRef.current = null
+    }
+  }, [])
+
+  const applyPosition = useCallback(async (lat, lng, accuracy) => {
+    stopWatch()
+    setLiveAccuracy(null)
     setCoords({ lat, lng, accuracy: accuracy || 0 })
     const addr = await reverseGeocode(lat, lng)
     onChange({ address: addr, lat, lng })
     setStatus('success')
-  }, [onChange])
+  }, [onChange, stopWatch])
 
   const detectLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -158,34 +171,75 @@ export default function LocationPicker({ value, onChange, error }) {
       setGeoError('Geolocation not supported by this browser.')
       return
     }
+    // Stop any existing watch
+    stopWatch()
+    bestAccuracyRef.current = Infinity
+    bestPositionRef.current = null
     setStatus('loading')
+    setLiveAccuracy(null)
     setGeoError('')
 
-    // ✅ FIX: Always use enableHighAccuracy: true so it uses GPS chip, not WiFi/IP
-    // maximumAge: 0 forces a fresh reading every time
-    navigator.geolocation.getCurrentPosition(
+    // watchPosition keeps firing as GPS chip warms up and gets more satellites.
+    // We accept the best fix we get, or stop early if accuracy ≤ 100m.
+    const ACCEPT_ACCURACY = 100  // meters — accept immediately if this good
+    const MAX_WAIT_MS     = 25000 // wait up to 25s for GPS to lock
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        applyCoords(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy)
+        const { latitude, longitude, accuracy } = pos.coords
+        setLiveAccuracy(Math.round(accuracy))
+
+        // Always keep the best (most accurate) fix so far
+        if (accuracy < bestAccuracyRef.current) {
+          bestAccuracyRef.current = accuracy
+          bestPositionRef.current = { lat: latitude, lng: longitude, accuracy }
+        }
+
+        // If it's good enough, accept immediately
+        if (accuracy <= ACCEPT_ACCURACY) {
+          applyPosition(latitude, longitude, accuracy)
+        }
       },
       (err) => {
-        setStatus(err.code === 1 ? 'denied' : 'error')
-        setGeoError(
-          err.code === 1
-            ? 'Location access denied. Tap "Pin on Map" to set your location manually.'
-            : 'GPS signal not available. Tap "Pin on Map" to set your location manually.'
-        )
+        stopWatch()
+        setLiveAccuracy(null)
+        // If we already have a reasonable fix, use it
+        if (bestPositionRef.current && bestPositionRef.current.accuracy < 5000) {
+          const b = bestPositionRef.current
+          applyPosition(b.lat, b.lng, b.accuracy)
+        } else {
+          setStatus(err.code === 1 ? 'denied' : 'error')
+          setGeoError(
+            err.code === 1
+              ? 'Location access denied. Tap "Pin on Map" to set manually.'
+              : 'GPS signal too weak. Tap "Pin on Map" to set manually.'
+          )
+        }
       },
-      {
-        enableHighAccuracy: true, // ← GPS chip, not WiFi/IP
-        timeout: 15000,           // Give phone GPS up to 15s to lock
-        maximumAge: 0,            // Always get fresh position
-      }
+      { enableHighAccuracy: true, timeout: MAX_WAIT_MS, maximumAge: 0 }
     )
-  }, [applyCoords])
+
+    // Hard timeout — accept best position found so far after MAX_WAIT_MS
+    setTimeout(() => {
+      if (watchIdRef.current !== null) {
+        stopWatch()
+        setLiveAccuracy(null)
+        if (bestPositionRef.current) {
+          const b = bestPositionRef.current
+          applyPosition(b.lat, b.lng, b.accuracy)
+        } else {
+          setStatus('error')
+          setGeoError('GPS could not lock. Tap "Pin on Map" to set manually.')
+        }
+      }
+    }, MAX_WAIT_MS)
+  }, [applyPosition, stopWatch])
 
   const clearLocation = () => {
+    stopWatch()
     setStatus('idle')
     setCoords(null)
+    setLiveAccuracy(null)
     onChange({ address: '', lat: null, lng: null })
   }
 
@@ -246,12 +300,18 @@ export default function LocationPicker({ value, onChange, error }) {
       </div>
 
       {/* Status badges */}
+      {status === 'loading' && liveAccuracy !== null && (
+        <div className="location-picker__status location-picker__status--loading">
+          <Loader2 size={13} className="spin" />
+          <span>Refining GPS… current accuracy ±{liveAccuracy}m — waiting for better fix</span>
+        </div>
+      )}
       {status === 'success' && coords && (
         <div className="location-picker__status location-picker__status--success">
           <CheckCircle size={13} />
           <span>
             {coords.accuracy > 0
-              ? `GPS detected · ±${Math.round(coords.accuracy)}m accuracy`
+              ? `GPS locked · ±${Math.round(coords.accuracy)}m accuracy`
               : 'Location pinned on map ✓'}
           </span>
         </div>
