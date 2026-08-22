@@ -667,3 +667,173 @@ img {
   .toast-container { left: var(--space-md); right: var(--space-md); bottom: var(--space-md); }
   .toast { min-width: unset; }
 }
+
+/* ===================================================
+   LocationPicker Component
+=================================================== */
+
+.location-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.location-picker__row {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: stretch;
+}
+
+.location-picker__input-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.location-picker__icon {
+  position: absolute;
+  left: 12px;
+  color: var(--color-primary);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.location-picker__input {
+  padding-left: 36px !important;
+  padding-right: 32px !important;
+}
+
+.location-picker__clear {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  transition: color var(--transition-fast);
+}
+.location-picker__clear:hover { color: var(--color-text); }
+
+.location-picker__btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: var(--font-size-sm) !important;
+  padding: 0 var(--space-md) !important;
+  height: 44px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  cursor: pointer;
+  font-weight: 600;
+  transition: background var(--transition-base), transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.location-picker__btn:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: white;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.location-picker__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Spin animation for loading icon */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spin { animation: spin 0.8s linear infinite; }
+
+/* Status badges */
+.location-picker__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+}
+.location-picker__status--success {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.location-picker__status--error {
+  background: #fce4ec;
+  color: #c62828;
+}
+
+/* Map container */
+.location-picker__map-container {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1.5px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  animation: fadeSlideIn 0.3s ease;
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.location-picker__map-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.location-picker__map-toggle {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.location-picker__map {
+  width: 100%;
+  height: 240px;
+  display: block;
+  border: none;
+}
+
+.location-picker__show-map {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-decoration: underline;
+  padding: 0;
+  width: fit-content;
+}
+
+@media (max-width: 768px) {
+  .location-picker__row { flex-direction: column; }
+  .location-picker__btn { width: 100%; justify-content: center; }
+  .location-picker__map { height: 200px; }
+}
+

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
 import { CROPS, TASK_ICONS } from '../store/mockData.js'
+import LocationPicker from '../components/LocationPicker.jsx'
 
 const today = new Date().toISOString().split('T')[0]
 
@@ -13,18 +14,22 @@ export default function RequirementsForm() {
   const [form, setForm] = useState({
     crop: '',
     area: '',
-    location: 'Lucknow, UP',
+    location: { address: '', lat: null, lng: null },
     date: '',
     time: '',
   })
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
 
+  const locationAddress = typeof form.location === 'object'
+    ? (form.location?.address || '')
+    : (form.location || '')
+
   const validate = () => {
     const e = {}
     if (!form.crop) e.crop = 'Please select a crop'
     if (!form.area || isNaN(form.area) || Number(form.area) <= 0) e.area = 'Enter a valid area (acres > 0)'
-    if (!form.location.trim()) e.location = 'Enter your location'
+    if (!locationAddress.trim()) e.location = 'Enter or detect your location'
     if (!form.date) e.date = 'Select a date'
     else if (form.date < today) e.date = 'Date must be today or later'
     if (!form.time) e.time = 'Select a time'
@@ -32,7 +37,7 @@ export default function RequirementsForm() {
   }
 
   const isValid = () => {
-    return form.crop && form.area && Number(form.area) > 0 && form.location.trim() &&
+    return form.crop && form.area && Number(form.area) > 0 && locationAddress.trim() &&
       form.date && form.date >= today && form.time
   }
 
@@ -49,7 +54,10 @@ export default function RequirementsForm() {
           task,
           crop: form.crop,
           areaAcres: Number(form.area),
-          location: form.location,
+          location: locationAddress,
+          locationCoords: typeof form.location === 'object'
+            ? { lat: form.location.lat, lng: form.location.lng }
+            : null,
           date: form.date,
           time: form.time,
         },
@@ -60,6 +68,11 @@ export default function RequirementsForm() {
   const set = (field) => (e) => {
     setForm((f) => ({ ...f, [field]: e.target.value }))
     setErrors((er) => ({ ...er, [field]: undefined }))
+  }
+
+  const setLocation = (val) => {
+    setForm((f) => ({ ...f, location: val }))
+    setErrors((er) => ({ ...er, location: undefined }))
   }
 
   return (
@@ -140,13 +153,11 @@ export default function RequirementsForm() {
 
           {/* Location */}
           <div className="form-group">
-            <label className="form-label">Location *</label>
-            <input
-              type="text"
-              className={`form-input ${errors.location ? 'error' : ''}`}
+            <label className="form-label">Farm Location *</label>
+            <LocationPicker
               value={form.location}
-              onChange={set('location')}
-              placeholder="e.g. Lucknow, UP"
+              onChange={setLocation}
+              error={errors.location}
             />
             {errors.location && <span className="form-error">{errors.location}</span>}
           </div>
